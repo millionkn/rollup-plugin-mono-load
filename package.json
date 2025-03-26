@@ -1,0 +1,40 @@
+{
+	"name": "@millionkn/rollup-plugin-mono-load",
+	"version": "0.0.1",
+	"description": "",
+	"type": "module",
+	"module": "./dist/index.js",
+	"scripts": {
+		"prepublish": "pnpm run build",
+		"build": "tsc"
+	},
+	"keywords": [],
+	"author": "",
+	"license": "ISC",
+	"devDependencies": {
+		"@millionkn/tss": "^0.1.1",
+		"@rollup/plugin-swc": "^0.4.0",
+		"@types/node": "^22.13.13",
+		"chalk": "^5.4.1",
+		"rollup": "^4.37.0",
+		"typescript": "^5.8.2",
+		"vite": "^6.2.3"
+	},
+	"files": [
+		"./dist"
+	],
+	"exports": {
+		".": {
+			"import": "./dist/index.js",
+			"types": "./dist/index.d.ts"
+		}
+	},
+	"peerDependencies": {
+		"@rollup/plugin-swc": "^0.4.0",
+		"@types/node": "^22.13.13",
+		"chalk": "^5.4.1",
+		"rollup": "^4.37.0",
+		"typescript": "^5.8.2",
+		"vite": "^6.2.3"
+	}
+}
