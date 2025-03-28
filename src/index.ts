@@ -115,7 +115,7 @@ export function rollupMonoLoad(opts: ProjectMeta): PluginOption {
 		'name': 'mono-load',
 		async load(id) {
 			if (!id.startsWith(projectRootDir)) { return }
-			const fileId = new URL(id).pathname.slice(1)
+			const fileId = decodeURIComponent(new URL(`file://${id}`).pathname.slice(1))
 			if (!cache.has(fileId)) {
 				await refreshCb({
 					addWatchFile: (id) => this.addWatchFile(id),
@@ -131,7 +131,8 @@ export function rollupMonoLoad(opts: ProjectMeta): PluginOption {
 		async watchChange(id, x) {
 			if (x.event !== 'update') { return }
 			if (!id.startsWith(projectRootDir)) { return }
-			await cache.get(id)?.refresh()
+			const fileId = decodeURIComponent(new URL(`file://${id}`).pathname.slice(1))
+			await cache.get(fileId)?.refresh()
 		}
 	}
 }
