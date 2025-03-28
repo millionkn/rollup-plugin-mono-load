@@ -7,6 +7,7 @@ import chalk from 'chalk'
 type Asyncable<T> = T | Promise<T>
 
 export type ProjectMeta = {
+	index?: [string, ...string[]],
 	projectRootDir: string,
 	tsConfigFile?: string,
 	buildPlugins?: (plugins: {
@@ -16,7 +17,7 @@ export type ProjectMeta = {
 	,
 }
 
-export function rollupIgnoreTsDecorators(
+export function rollupMonoLoad(
 	isMonoProject: (fileId: string) => false | Asyncable<ProjectMeta>,
 ): PluginOption {
 	const cache: Map<string, {
@@ -24,8 +25,8 @@ export function rollupIgnoreTsDecorators(
 		map: SourceMap,
 		refresh: () => Promise<void>,
 	}> = new Map()
-	const refreshCb = async (id: string, projectMeta: ProjectMeta, addWatchFile: (id: string) => void) => {
-		console.log(`${chalk.green('[Processing with Rollup]')} ${chalk.blue(id)}`);
+	const refreshCb = async (index: [string, ...string[]], projectMeta: ProjectMeta, addWatchFile: (id: string) => void) => {
+		console.log(`${chalk.green('[Processing with Rollup]')} ${index.length} index file...`);
 		const getPlugins = projectMeta.buildPlugins ?? (({ swc, tsIsExternal }) => [swc, tsIsExternal])
 		const plugins = await getPlugins({
 			swc: swc({
@@ -77,7 +78,7 @@ export function rollupIgnoreTsDecorators(
 			})()
 		})
 		const bundle = await rollup({
-			input: id,
+			input: index,
 			treeshake: {
 				moduleSideEffects: false,
 			},
@@ -98,7 +99,7 @@ export function rollupIgnoreTsDecorators(
 				code: chunk.code,
 				map: chunk.map!,
 				refresh: () => {
-					refresh$ ??= refreshCb(id, projectMeta, addWatchFile)
+					refresh$ ??= refreshCb(index, projectMeta, addWatchFile)
 					return refresh$
 				}
 			})
@@ -112,7 +113,7 @@ export function rollupIgnoreTsDecorators(
 			const projectMeta = await isMonoProject(id)
 			if (!projectMeta) { return }
 			if (!cache.has(id)) {
-				await refreshCb(id, projectMeta, (id) => this.addWatchFile(id))
+				await refreshCb(projectMeta.index ?? [id], projectMeta, (id) => this.addWatchFile(id))
 			}
 			const saved = cache.get(id)!
 			return {
