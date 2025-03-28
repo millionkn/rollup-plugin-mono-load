@@ -19,7 +19,7 @@ export type ProjectMeta = {
 }
 
 export function rollupMonoLoad(opts: ProjectMeta): PluginOption {
-	let projectRootDir = opts.projectRootDir
+	let projectRootDir = normalizePath(opts.projectRootDir)
 	if (!projectRootDir.endsWith('/')) { projectRootDir = `${projectRootDir}/` }
 	const index = opts.index.map((path) => resolve(projectRootDir, path))
 	const getPlugins = opts.buildPlugins ?? (({ swc, tsIsExternal }) => [swc, tsIsExternal])
