@@ -7,7 +7,7 @@ import chalk from 'chalk'
 type Asyncable<T> = T | Promise<T>
 
 export type ProjectMeta = {
-	index?: [string, ...string[]],
+	index: [string, ...string[]],
 	projectRootDir: string,
 	tsConfigFile?: string,
 	buildPlugins?: (plugins: {
@@ -117,7 +117,7 @@ export function rollupMonoLoad(
 			if (!projectMeta) { return }
 			if (!cache.has(id)) {
 				await refreshCb({
-					index: projectMeta.index ?? [id],
+					index: projectMeta.index,
 					projectMeta,
 					addWatchFile: (id) => this.addWatchFile(id),
 					log: this.environment.mode === 'build' ? () => { } : (msg) => console.log(msg)
