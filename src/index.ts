@@ -19,7 +19,8 @@ export type ProjectMeta = {
 }
 
 export function rollupMonoLoad(opts: ProjectMeta): PluginOption {
-	const projectRootDir = opts.projectRootDir
+	let projectRootDir = opts.projectRootDir
+	if (!projectRootDir.endsWith('/')) { projectRootDir = `${projectRootDir}/` }
 	const index = opts.index.map((path) => resolve(projectRootDir, path))
 	const getPlugins = opts.buildPlugins ?? (({ swc, tsIsExternal }) => [swc, tsIsExternal])
 	const tsConfigFile = opts.tsConfigFile
@@ -113,7 +114,7 @@ export function rollupMonoLoad(opts: ProjectMeta): PluginOption {
 	return {
 		'name': 'mono-load',
 		async load(id) {
-			if (id.startsWith(projectRootDir)) { return }
+			if (!id.startsWith(projectRootDir)) { return }
 			const fileId = new URL(id).pathname.slice(1)
 			if (!cache.has(fileId)) {
 				await refreshCb({
