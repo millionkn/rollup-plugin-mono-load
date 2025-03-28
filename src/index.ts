@@ -25,9 +25,14 @@ export function rollupMonoLoad(
 		map: SourceMap,
 		refresh: () => Promise<void>,
 	}> = new Map()
-	const refreshCb = async (index: [string, ...string[]], projectMeta: ProjectMeta, addWatchFile: (id: string) => void) => {
-		console.log(`${chalk.green('[Processing with Rollup]')} ${index.length} index file...`);
-		const getPlugins = projectMeta.buildPlugins ?? (({ swc, tsIsExternal }) => [swc, tsIsExternal])
+	const refreshCb = async (opts: {
+		index: [string, ...string[]],
+		projectMeta: ProjectMeta,
+		addWatchFile: (id: string) => void,
+		log: (msg: string) => void
+	}) => {
+		opts.log(`${chalk.green('[Processing with Rollup]')} ${opts.index.length} index file...`);
+		const getPlugins = opts.projectMeta.buildPlugins ?? (({ swc, tsIsExternal }) => [swc, tsIsExternal])
 		const plugins = await getPlugins({
 			swc: swc({
 				swc: {
@@ -43,7 +48,7 @@ export function rollupMonoLoad(
 				}
 			}),
 			tsIsExternal: (() => {
-				const configFilePath = ts.findConfigFile(projectMeta.projectRootDir, ts.sys.fileExists, projectMeta.tsConfigFile)
+				const configFilePath = ts.findConfigFile(opts.projectMeta.projectRootDir, ts.sys.fileExists, opts.projectMeta.tsConfigFile)
 				if (!configFilePath) { throw new Error(`can't find a tsconfig.json`) }
 				const parsedCommandLine = ts.getParsedCommandLineOfConfigFile(configFilePath, {
 					module: ts.ModuleKind.ESNext,
@@ -78,7 +83,7 @@ export function rollupMonoLoad(
 			})()
 		})
 		const bundle = await rollup({
-			input: index,
+			input: opts.index,
 			treeshake: {
 				moduleSideEffects: false,
 			},
@@ -93,13 +98,13 @@ export function rollupMonoLoad(
 		r.output.forEach((chunk) => {
 			if (chunk.type !== 'chunk') { return }
 			const sourceId = normalizePath(chunk.facadeModuleId!)
-			console.log(`${chalk.green('[rollup build success]')} ${chalk.blue(sourceId)}`);
-			addWatchFile(sourceId)
+			opts.log(`${chalk.green('[rollup build success]')} ${chalk.blue(sourceId)}`);
+			opts.addWatchFile(sourceId)
 			cache.set(sourceId, {
 				code: chunk.code,
 				map: chunk.map!,
 				refresh: () => {
-					refresh$ ??= refreshCb(index, projectMeta, addWatchFile)
+					refresh$ ??= refreshCb(opts)
 					return refresh$
 				}
 			})
@@ -107,13 +112,16 @@ export function rollupMonoLoad(
 	}
 	return {
 		'name': 'mono-load',
-		async load(_id) {
-			const url = new URL(`file://${_id}`)
-			const id = decodeURIComponent(url.pathname.slice(1))
+		async load(id) {
 			const projectMeta = await isMonoProject(id)
 			if (!projectMeta) { return }
 			if (!cache.has(id)) {
-				await refreshCb(projectMeta.index ?? [id], projectMeta, (id) => this.addWatchFile(id))
+				await refreshCb({
+					index: projectMeta.index ?? [id],
+					projectMeta,
+					addWatchFile: (id) => this.addWatchFile(id),
+					log: this.environment.mode === 'build' ? () => { } : (msg) => console.log(msg)
+				})
 			}
 			const saved = cache.get(id)!
 			return {
