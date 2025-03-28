@@ -3,6 +3,7 @@ import { InputPluginOption, Plugin, rollup, SourceMap } from 'rollup'
 import swc from "@rollup/plugin-swc";
 import ts from 'typescript'
 import chalk from 'chalk'
+import { resolve } from 'path';
 
 type Asyncable<T> = T | Promise<T>
 
@@ -17,22 +18,21 @@ export type ProjectMeta = {
 	,
 }
 
-export function rollupMonoLoad(
-	isMonoProject: (fileId: string) => false | Asyncable<ProjectMeta>,
-): PluginOption {
+export function rollupMonoLoad(opts: ProjectMeta): PluginOption {
+	const projectRootDir = opts.projectRootDir
+	const index = opts.index.map((path) => resolve(projectRootDir, path))
+	const getPlugins = opts.buildPlugins ?? (({ swc, tsIsExternal }) => [swc, tsIsExternal])
+	const tsConfigFile = opts.tsConfigFile
 	const cache: Map<string, {
 		code: string,
 		map: SourceMap,
 		refresh: () => Promise<void>,
 	}> = new Map()
 	const refreshCb = async (opts: {
-		index: [string, ...string[]],
-		projectMeta: ProjectMeta,
 		addWatchFile: (id: string) => void,
 		log: (msg: string) => void
 	}) => {
-		opts.log(`${chalk.green('[Processing with Rollup]')} ${opts.index.length} index file...`);
-		const getPlugins = opts.projectMeta.buildPlugins ?? (({ swc, tsIsExternal }) => [swc, tsIsExternal])
+		opts.log(`${chalk.green('[Processing with Rollup]')} building...`);
 		const plugins = await getPlugins({
 			swc: swc({
 				swc: {
@@ -48,7 +48,7 @@ export function rollupMonoLoad(
 				}
 			}),
 			tsIsExternal: (() => {
-				const configFilePath = ts.findConfigFile(opts.projectMeta.projectRootDir, ts.sys.fileExists, opts.projectMeta.tsConfigFile)
+				const configFilePath = ts.findConfigFile(projectRootDir, ts.sys.fileExists, tsConfigFile)
 				if (!configFilePath) { throw new Error(`can't find a tsconfig.json`) }
 				const parsedCommandLine = ts.getParsedCommandLineOfConfigFile(configFilePath, {
 					module: ts.ModuleKind.ESNext,
@@ -83,7 +83,7 @@ export function rollupMonoLoad(
 			})()
 		})
 		const bundle = await rollup({
-			input: opts.index,
+			input: index,
 			treeshake: {
 				moduleSideEffects: false,
 			},
@@ -113,17 +113,15 @@ export function rollupMonoLoad(
 	return {
 		'name': 'mono-load',
 		async load(id) {
-			const projectMeta = await isMonoProject(id)
-			if (!projectMeta) { return }
-			if (!cache.has(id)) {
+			if (id.startsWith(projectRootDir)) { return }
+			const fileId = new URL(id).pathname.slice(1)
+			if (!cache.has(fileId)) {
 				await refreshCb({
-					index: projectMeta.index,
-					projectMeta,
 					addWatchFile: (id) => this.addWatchFile(id),
 					log: this.environment.mode === 'build' ? () => { } : (msg) => console.log(msg)
 				})
 			}
-			const saved = cache.get(id)!
+			const saved = cache.get(fileId)!
 			return {
 				code: saved.code,
 				map: saved.map,
@@ -131,8 +129,7 @@ export function rollupMonoLoad(
 		},
 		async watchChange(id, x) {
 			if (x.event !== 'update') { return }
-			const isMono = !!await isMonoProject(id)
-			if (!isMono) { return }
+			if (!id.startsWith(projectRootDir)) { return }
 			await cache.get(id)?.refresh()
 		}
 	}
